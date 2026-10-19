@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Auto Detail Inventory Manager</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --full: #38bdf8;
+      --good: #22c55e;
+      --low: #eab308;
+      --warning: #f97316;
+      --none: #ef4444;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); padding: 24px; }
+    .layout { display: grid; grid-template-columns: 1fr 340px; gap: 24px; max-width: 1400px; margin: 0 auto; }
+    
+    h1, h2, h3 { font-weight: 600; margin-bottom: 12px; }
+    h1 { font-size: 1.5rem; color: var(--accent); }
+    h2 { font-size: 1.15rem; border-bottom: 1px solid var(--border); padding-bottom: 8px; margin-bottom: 16px; }
+
+    .panel { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 24px; }
+    
+    /* Setup Grid */
+    .setup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
+    .setup-item { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; }
+    .setup-item label { color: var(--text-muted); }
+    .setup-item input { background: #0f172a; border: 1px solid var(--border); color: var(--text); padding: 6px 10px; border-radius: 4px; font-size: 0.9rem; }
+    .btn { background: var(--accent); color: #000; border: none; padding: 10px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; margin-top: 16px; }
+    .btn:hover { opacity: 0.9; }
+
+    /* Order Row */
+    .order-controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group label { font-size: 0.85rem; color: var(--text-muted); }
+    select { background: #0f172a; border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 4px; font-size: 0.95rem; min-width: 200px; }
+
+    /* Inventory Table */
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+    th, td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-weight: 500; }
+    .progress-bar-bg { width: 100%; background: #334155; border-radius: 4px; height: 8px; overflow: hidden; margin-top: 4px; }
+    .progress-bar-fill { height: 100%; transition: width 0.3s; }
+
+    /* Badges */
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+    .badge-full { background: rgba(56, 189, 248, 0.2); color: var(--full); }
+    .badge-good { background: rgba(34, 197, 94, 0.2); color: var(--good); }
+    .badge-low { background: rgba(234, 179, 8, 0.2); color: var(--low); }
+    .badge-warning { background: rgba(249, 115, 22, 0.2); color: var(--warning); }
+    .badge-none { background: rgba(239, 68, 68, 0.2); color: var(--none); }
+
+    /* Shopping Sidebar */
+    .shopping-item { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-radius: 6px; background: #0f172a; border: 1px solid var(--border); margin-bottom: 8px; font-size: 0.85rem; }
+    .shopping-empty { color: var(--text-muted); font-size: 0.85rem; font-style: italic; }
+  </style>
+</head>
+<body>
+
+  <div class="layout">
+    <main>
+      <h1>Auto Detailing Inventory Tracker</h1>
+      
+      <!-- Initial Stock Units Input -->
+      <div class="panel">
+        <h2>1. Initial Stock Setup (Number of Units / Containers)</h2>
+        <div class="setup-grid" id="setupForm"></div>
+        <button class="btn" onclick="initializeStock()">Initialize / Reset Inventory</button>
+      </div>
+
+      <!-- Order Processing -->
+      <div class="panel">
+        <h2>2. Process Customer Order</h2>
+        <div class="order-controls">
+          <div class="form-group">
+            <label for="serviceSelect">Service Package</label>
+            <select id="serviceSelect"></select>
+          </div>
+          <div class="form-group">
+            <label for="sizeSelect">Vehicle Size</label>
+            <select id="sizeSelect">
+              <option value="0">Small</option>
+              <option value="1">Medium</option>
+              <option value="2">Large</option>
+            </select>
+          </div>
+          <button class="btn" style="margin-top:0;" onclick="placeOrder()">Place Order & Deduct</button>
+        </div>
+      </div>
+
+      <!-- Current Inventory Status -->
+      <div class="panel">
+        <h2>Current Product Stock</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th>Current Stock</th>
+              <th>Capacity</th>
+              <th>Level</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="inventoryTable"></tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- Shopping / Reorder Sidebar -->
+    <aside>
+      <div class="panel" style="position: sticky; top: 24px;">
+        <h2>🛒 Shopping List</h2>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+          Products currently needing attention (Low, Warning, or None):
+        </p>
+        <div id="shoppingList"></div>
+      </div>
+    </aside>
+  </div>
+
+  <script>
+    // Product spec definitions: name, pack size, unit
+    const PRODUCT_SPECS = {
+      water: { name: "Water", packSize: 100, unit: "gallons" },
+      rSoap: { name: "R.Soap", packSize: 32, unit: "oz" },
+      pSoap: { name: "P.Soap", packSize: 32, unit: "oz" },
+      gloves: { name: "Gloves", packSize: 100, unit: "gloves" },
+      towels: { name: "Towels", packSize: 200, unit: "towels" },
+      waxSpray: { name: "Wax Spray", packSize: 16, unit: "oz" },
+      clayBar: { name: "Clay Bar", packSize: 6, unit: "bars" },
+      intSpray: { name: "Int. Spray", packSize: 18, unit: "oz" },
+      pIntSpray: { name: "PInt.Spray", packSize: 16, unit: "oz" },
+      glassCleaner: { name: "Glass Cleaner", packSize: 32, unit: "oz" },
+      carpetCleaner: { name: "Carpet Cleaner", packSize: 32, unit: "oz" },
+      paintC1: { name: "1Paint.C", packSize: 36, unit: "oz" },
+      paintC2: { name: "2Paint.C", packSize: 36, unit: "oz" },
+      hKit: { name: "H.Kit", packSize: 3, unit: "kits" }
+    };
+
+    // Recipe mapping [small, medium, large]
+    const SERVICES = {
+      "Basic Exterior": {
+        water: [3, 4, 6], rSoap: [4, 5, 7], gloves: [2, 2, 2], towels: [4, 6, 8], glassCleaner: [1, 1, 2]
+      },
+      "Premium Exterior": {
+        water: [3, 4, 6], pSoap: [4, 5, 7], gloves: [2, 2, 2], towels: [4, 6, 8], waxSpray: [2, 2, 3], clayBar: [0.5, 0.5, 1], glassCleaner: [1, 1, 2]
+      },
+      "Basic Interior": {
+        intSpray: [2, 2, 3], glassCleaner: [1, 1, 2], towels: [6, 8, 10], gloves: [2, 2, 2]
+      },
+      "Premium Interior": {
+        pIntSpray: [2, 2, 3], glassCleaner: [1, 1, 2], towels: [6, 8, 10], water: [0.5, 0.5, 1], carpetCleaner: [2, 2, 4], gloves: [2, 2, 2]
+      },
+      "Basic Detail": {
+        water: [3, 4, 6], rSoap: [4, 5, 7], gloves: [2, 2, 2], towels: [10, 14, 18], glassCleaner: [1, 1, 2], intSpray: [2, 2, 3]
+      },
+      "Premium Detail": {
+        water: [3.5, 4.5, 7], pSoap: [4, 5, 7], gloves: [2, 2, 2], towels: [10, 14, 18], waxSpray: [2, 2, 3], clayBar: [0.5, 0.5, 1], glassCleaner: [1, 1, 2], pIntSpray: [2, 2, 3], carpetCleaner: [2, 2, 4]
+      },
+      "Standard Paint Correction": {
+        clayBar: [0.5, 0.5, 1], water: [2, 3, 4], gloves: [2, 2, 2], paintC1: [3, 5, 8], waxSpray: [2, 2, 3]
+      },
+      "2-Step Paint Correction": {
+        clayBar: [0.5, 0.5, 1], water: [2, 3, 4], gloves: [2, 2, 2], paintC1: [3, 5, 8], paintC2: [3, 5, 8], waxSpray: [2, 2, 3]
+      },
+      "Headlight Restoration": {
+        hKit: [1, 1, 1]
+      }
+    };
+
+    // State tracking
+    let inventory = {};
+
+    function renderSetupInputs() {
+      const container = document.getElementById("setupForm");
+      const defaults = { water: 3, rSoap: 5, pSoap: 5, gloves: 2, towels: 2, waxSpray: 5, clayBar: 2, intSpray: 4, pIntSpray: 4, glassCleaner: 5, carpetCleaner: 4, paintC1: 3, paintC2: 3, hKit: 2 };
+      
+      container.innerHTML = Object.entries(PRODUCT_SPECS).map(([key, item]) => `
+        <div class="setup-item">
+          <label>${item.name} (${item.packSize} ${item.unit}/pack)</label>
+          <input type="number" id="input_${key}" min="0" value="${defaults[key] || 1}">
+        </div>
+      `).join('');
+
+      const serviceSelect = document.getElementById("serviceSelect");
+      serviceSelect.innerHTML = Object.keys(SERVICES).map(s => `<option value="${s}">${s}</option>`).join('');
+    }
+
+    function initializeStock() {
+      Object.keys(PRODUCT_SPECS).forEach(key => {
+        const units = parseFloat(document.getElementById(`input_${key}`).value) || 0;
+        const totalAmount = units * PRODUCT_SPECS[key].packSize;
+        inventory[key] = {
+          max: totalAmount,
+          current: totalAmount,
+          hasBeenUsed: false
+        };
+      });
+      renderTables();
+    }
+
+    function getStatus(item) {
+      if (item.current <= 0) return { label: "None", class: "badge-none", color: "var(--none)" };
+      if (!item.hasBeenUsed && item.current === item.max) return { label: "Full", class: "badge-full", color: "var(--full)" };
+
+      const percentage = (item.current / item.max) * 100;
+
+      if (percentage <= 10) return { label: "Warning", class: "badge-warning", color: "var(--warning)" };
+      if (percentage <= 50) return { label: "Low", class: "badge-low", color: "var(--low)" };
+      return { label: "Good", class: "badge-good", color: "var(--good)" };
+    }
+
+    function placeOrder() {
+      const serviceName = document.getElementById("serviceSelect").value;
+      const sizeIndex = parseInt(document.getElementById("sizeSelect").value, 10);
+      const recipe = SERVICES[serviceName];
+
+      // Check if enough stock exists for all items
+      let missingItems = [];
+      for (const [prodKey, usageList] of Object.entries(recipe)) {
+        const needed = usageList[sizeIndex];
+        if (inventory[prodKey].current < needed) {
+          missingItems.push(`${PRODUCT_SPECS[prodKey].name} (Needs ${needed} ${PRODUCT_SPECS[prodKey].unit}, has ${inventory[prodKey].current.toFixed(1)})`);
+        }
+      }
+
+      if (missingItems.length > 0) {
+        alert("Cannot complete order! Insufficient stock:\n\n• " + missingItems.join("\n• "));
+        return;
+      }
+
+      // Deduct items
+      for (const [prodKey, usageList] of Object.entries(recipe)) {
+        const needed = usageList[sizeIndex];
+        inventory[prodKey].current = Math.max(0, inventory[prodKey].current - needed);
+        inventory[prodKey].hasBeenUsed = true;
+      }
+
+      renderTables();
+    }
+
+    function renderTables() {
+      const tbody = document.getElementById("inventoryTable");
+      const shoppingList = document.getElementById("shoppingList");
+      
+      let tableRows = "";
+      let shoppingRows = "";
+
+      Object.entries(inventory).forEach(([key, item]) => {
+        const spec = PRODUCT_SPECS[key];
+        const status = getStatus(item);
+        const pct = item.max > 0 ? Math.min(100, Math.max(0, (item.current / item.max) * 100)) : 0;
+
+        tableRows += `
+          <tr>
+            <td><strong>${spec.name}</strong></td>
+            <td>${item.current.toFixed(1)} ${spec.unit}</td>
+            <td>${item.max} ${spec.unit}</td>
+            <td style="width: 140px;">
+              <span style="font-size:0.75rem">${pct.toFixed(0)}%</span>
+              <div class="progress-bar-bg">
+                <div class="progress-bar-fill" style="width: ${pct}%; background: ${status.color};"></div>
+              </div>
+            </td>
+            <td><span class="badge ${status.class}">${status.label}</span></td>
+          </tr>
+        `;
+
+        // Populate shopping list for Low, Warning, and None
+        if (["Low", "Warning", "None"].includes(status.label)) {
+          shoppingRows += `
+            <div class="shopping-item">
+              <div>
+                <strong>${spec.name}</strong><br>
+                <span style="font-size:0.75rem; color:var(--text-muted)">Remaining: ${item.current.toFixed(1)} / ${item.max} ${spec.unit}</span>
+              </div>
+              <span class="badge ${status.class}">${status.label}</span>
+            </div>
+          `;
+        }
+      });
+
+      tbody.innerHTML = tableRows;
+      shoppingList.innerHTML = shoppingRows || `<p class="shopping-empty">All products are healthy (>50% stock).</p>`;
+    }
+
+    // Initialize on launch
+    renderSetupInputs();
+    initializeStock();
+  </script>
+</body>
+</html>
